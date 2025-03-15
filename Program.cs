@@ -9,9 +9,14 @@ class Program
 
 
         controller.AddRoute("/test", (HttpRequest) => {
-                var response = new HttpResponse();
-                response.SetBody("<h1>Hello!</h1>");
-                return response;
+                string responseBody = "<ul>";
+                foreach (var kv in HttpRequest.GETParameters)
+                {
+                    responseBody += $"<li>{kv.Key} = {kv.Value}</li>";
+                }
+                responseBody += "</ul>";
+
+                return new HttpResponse(200, responseBody);
                 });
 
 

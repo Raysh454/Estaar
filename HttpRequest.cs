@@ -8,10 +8,12 @@ class HttpRequest
     public String? targetPath { get; private set;}
     public String? httpVersion { get; private set;}
     public Dictionary<String, String> requestHeaders {get; private set;}
+    public Dictionary<String, String> GETParameters {get; private set;}
     private byte[]? requestBody { get; set; }
 
     public HttpRequest() {
         requestHeaders = new Dictionary<String, String>(StringComparer.OrdinalIgnoreCase);
+        GETParameters = new Dictionary<String, String>(StringComparer.OrdinalIgnoreCase);
     }
 
     public void ParseRequestLine(byte[] buffer)
@@ -169,6 +171,30 @@ class HttpRequest
             Array.Copy(buffer, startOfBody, requestBody, 0, buffer.Length - startOfBody);
         }
     }
+
+    public void ParseGetParameters()
+    {
+        if (targetPath == null)
+        {
+            return;
+        }
+
+        var start = targetPath.IndexOf('?');
+        if (start == -1)
+        {
+            return;
+        }
+
+        string[] getParams = targetPath.Substring(start+1).Split('&');
+        foreach (var param in getParams)
+        {
+            var equalIndex = param.IndexOf('=');
+            if (equalIndex == -1)
+                AddGetParameter(param, "");
+            else
+                AddGetParameter(param.Substring(0, equalIndex), param.Substring(equalIndex+1));
+        }
+    }
    
     public void PrintHttpRequest() {
         Console.WriteLine($"{httpMethod} {targetPath} {httpVersion}");
@@ -180,6 +206,18 @@ class HttpRequest
 
         if (requestBody != null)
             Console.WriteLine(Encoding.UTF8.GetString(requestBody));
+    }
+
+    private void AddGetParameter(String key, String value)
+    {
+        if (GETParameters.ContainsKey(key))
+        {
+            GETParameters[key] = value;
+        }
+        else
+        {
+            GETParameters.Add(key, value);
+        }
     }
 
     private static readonly HashSet<string> AcceptedHttpMethods = new()

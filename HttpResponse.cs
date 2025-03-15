@@ -12,6 +12,15 @@ class HttpResponse
 
     public HttpResponse() {
         responseHeaders = new Dictionary<String, String>();
+        responseHeaders.Add("Content-Type", "text/html");
+    }
+
+    public HttpResponse(int httpStatusCode, String requestBody)
+    {
+        responseHeaders = new Dictionary<String, String>();
+        responseHeaders.Add("Content-Type", "text/html");
+        this.httpStatusCode = httpStatusCode;
+        SetBody(requestBody);
     }
 
     public void SetHeaders((String name, String value)[] headers) 

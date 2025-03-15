@@ -31,10 +31,13 @@ class Controller
         }
 
         // TODO: Add dynamic routing eg: /user/{id}
+        // TODO: Ignore # as well
+        // TODO: Some kind of templating
 
-        if (routes.ContainsKey(request.targetPath))
+        var targetPath = request.targetPath.Split('?')[0];
+        if (routes.ContainsKey(targetPath))
         {
-            return routes[request.targetPath](request);
+            return routes[targetPath](request);
         }
 
         // TODO: Create a better way to send 404s globally

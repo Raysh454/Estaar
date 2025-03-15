@@ -22,6 +22,7 @@ class HttpServer
         while (true)
         {
             TcpClient client = listener.AcceptTcpClient();
+            Console.WriteLine($"Handling Client");
             ThreadPool.QueueUserWorkItem(state => clientHandler.HandleClient((TcpClient)state!, controller), client);
 
         }
@@ -110,7 +111,6 @@ class ClientHandler
         writer.Complete();
     }
 
-    // TODO: IDK How but make this cleaner
     async Task ReadPipeAsync(PipeReader reader)
     {
         var headersAreProcessed = false;
@@ -134,37 +134,25 @@ class ClientHandler
             
 
             // Process Body
-            int.TryParse(httpRequest!.GetHeader("Content-Length"), out contentLength);
-            if (contentLength != -1 && headersAreProcessed)
+            if (headersAreProcessed)
             {
-                byte[] byteBuffer = buffer.Slice(0, buffer.Length).ToArray();
-                ms.Write(byteBuffer, 0, byteBuffer.Length);
-                contentLengthRead += byteBuffer.Length;
-                buffer = buffer.Slice(buffer.End);
-            }            
+                ProcessRequestBody(ref ms, ref buffer, ref contentLengthRead);
+            }
+
+            requestFullyParsed = (contentLengthRead == contentLength) || (contentLength == -1 && headersAreProcessed);
 
             if (contentLengthRead == contentLength)
             {
-                httpRequest.SetBody(ms.ToArray());
-                requestFullyParsed = true;
-            } else if (contentLength == -1 && headersAreProcessed)
-            {
-                requestFullyParsed = true;
+                httpRequest!.SetBody(ms.ToArray());
             }
 
             if (requestFullyParsed)
             {
-                httpRequest.PrintHttpRequest();
-                HttpResponse response = controller!.HandleHttpRequest(httpRequest!);
-                await clientStream!.WriteAsync(response.CraftRawHttpResponse());
-                headersAreProcessed = false;
-                contentLength = -1;
-                contentLengthRead = 0;
-                requestFullyParsed = false;
-                requestLineParsed = false;
-                this.httpRequest = new HttpRequest();
-                this.httpResponse = new HttpResponse();
-                ms.SetLength(0); 
+                httpRequest!.ParseGetParameters();
+                ProcessParsedRequest();
+                if (ConnectionClose()) // Break if Connection Header is set to close.
+                    break;
+                ResetReadPipeAsyncVariables(out headersAreProcessed, out contentLength, out contentLengthRead, out requestFullyParsed, ref ms); // Cleanup
             }
 
             if (result.IsCompleted)
@@ -175,6 +163,49 @@ class ClientHandler
         }
         reader.Complete();
     }
+
+    private bool ConnectionClose()
+    {
+        var connection = httpRequest!.GetHeader("Connection");
+        if (connection != null && connection.Equals("Close", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    private void ProcessRequestBody(ref MemoryStream ms, ref ReadOnlySequence<byte> buffer, ref int contentLengthRead)
+    {
+
+        int.TryParse(httpRequest!.GetHeader("Content-Length"), out var contentLength);
+        if (contentLength != -1)
+        {
+            byte[] byteBuffer = buffer.Slice(0, buffer.Length).ToArray();
+            ms.Write(byteBuffer, 0, byteBuffer.Length);
+            contentLengthRead += byteBuffer.Length;
+            buffer = buffer.Slice(buffer.End);
+        }
+    }
+
+    private async void ProcessParsedRequest()
+    {
+        httpRequest!.PrintHttpRequest();
+        HttpResponse response = controller!.HandleHttpRequest(httpRequest!);
+        await clientStream!.WriteAsync(response.CraftRawHttpResponse());
+    }
+
+    private void ResetReadPipeAsyncVariables(out bool headersAreProcessed, out int contentLength, out int contentLengthRead, out bool requestFullyParsed, ref MemoryStream ms)
+    {
+        headersAreProcessed = false;
+        contentLength = -1;
+        contentLengthRead = 0;
+        requestFullyParsed = false;
+        requestLineParsed = false;
+        this.httpRequest = new HttpRequest();
+        this.httpResponse = new HttpResponse();
+        ms.SetLength(0); 
+    }
+
 
     private bool ProcessRequestHeaders(ref SequencePosition? position, ref ReadOnlySequence<byte> buffer)
     {
