@@ -23,7 +23,7 @@ class HttpServer
         {
             TcpClient client = listener.AcceptTcpClient();
             Console.WriteLine($"Handling Client");
-            clientHandler.HandleClient(client, controller);
+            _ = Task.Run(() => clientHandler.HandleClient(client, controller));
         }
 
     }
