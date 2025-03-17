@@ -23,8 +23,7 @@ class HttpServer
         {
             TcpClient client = listener.AcceptTcpClient();
             Console.WriteLine($"Handling Client");
-            ThreadPool.QueueUserWorkItem(state => clientHandler.HandleClient((TcpClient)state!, controller), client);
-
+            clientHandler.HandleClient(client, controller);
         }
 
     }
