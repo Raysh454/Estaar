@@ -24,7 +24,6 @@ class Controller
         HttpResponse response = new HttpResponse();
         if (request.targetPath == null)
         {
-            // TODO: Create a better way to send 404s globally
             response.SetHttpStatus(404);
             response.SetBody("<h1> 404 Not Found </h1>");
             return response;

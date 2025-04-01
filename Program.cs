@@ -9,14 +9,10 @@ class Program
 
 
         controller.AddRoute("/test", (HttpRequest) => {
-                string responseBody = "<ul>";
-                foreach (var kv in HttpRequest.GETParameters)
-                {
-                    responseBody += $"<li>{kv.Key} = {kv.Value}</li>";
-                }
-                responseBody += "</ul>";
-
-                return new HttpResponse(200, responseBody);
+                var httpResponse = new HttpResponse();
+                httpResponse.SetHttpStatus(200);
+                httpResponse.ServeFile("test.html");
+                return httpResponse;
                 });
 
 

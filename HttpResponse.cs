@@ -1,6 +1,8 @@
 namespace Estaar;
 
 using System.Text;
+using System.Net;
+using HeyRed.Mime;
 
 class HttpResponse
 {
@@ -27,32 +29,60 @@ class HttpResponse
     {
         foreach (var header in headers)
         {
-            if (!this.responseHeaders.ContainsKey(header.name))
-            {
-                this.responseHeaders.Add(header.name, header.value);
-            } else
-            {
-                this.responseHeaders[header.name] = header.value;
-            }
+            SetHeader(header.name, header.value);
+        }
+    }
+
+    public void SetHeader(string name, string value)
+    {
+        if (!this.responseHeaders.ContainsKey(name))
+        {
+            this.responseHeaders.Add(name, value);
+        } else
+        {
+            this.responseHeaders[name] = value;
         }
     }
 
     public void SetBody(String body)
     {
         responseBody = Encoding.UTF8.GetBytes(body);
-        if (!responseHeaders.ContainsKey("Content-Length"))
-            responseHeaders.Add("Content-Length", responseBody.Length.ToString());
-        responseHeaders["Content-Length"] = responseBody.Length.ToString();
-
+        SetHeader("Content-Length", responseBody.Length.ToString());
     }
 
     public void SetBody(byte[] body)
     {
         responseBody = body;
-        if (!responseHeaders.ContainsKey("Content-Length"))
-            responseHeaders.Add("Content-Length", responseBody.Length.ToString());
-        responseHeaders["Content-Length"] = responseBody.Length.ToString();
+        SetHeader("Content-Length", responseBody.Length.ToString());
     }
+
+    public void AppendToBody(string body)
+    {
+        var bodyBytes = Encoding.UTF8.GetBytes(body);
+        byte[] newBody = new byte[bodyBytes.Length + (responseBody != null ? responseBody.Length : 0)];
+       
+        if (responseBody != null)
+            Array.Copy(responseBody, newBody, responseBody.Length);
+
+        Array.Copy(bodyBytes, newBody, bodyBytes.Length);
+
+        responseBody = newBody;
+        SetHeader("Content-Length", responseBody.Length.ToString());
+    }
+
+    public void AppendToBody(byte[] body)
+    {
+        byte[] newBody = new byte[body.Length + (responseBody != null ? responseBody.Length : 0)];
+       
+        if (responseBody != null)
+            Array.Copy(responseBody, newBody, responseBody.Length);
+
+        Array.Copy(body, newBody, body.Length);
+
+        responseBody = newBody;
+        SetHeader("Content-Length", responseBody.Length.ToString());
+    }
+
 
     public void SetHttpVersion(String version)
     {
@@ -77,36 +107,8 @@ class HttpResponse
 
     public void SetHttpStatus(int statusCode)
     {
-        var statusMessages = new Dictionary<int, string>
-        {
-            { 200, "OK" },
-            { 201, "Created" },
-            { 204, "No Content" },
-            { 301, "Moved Permanently" },
-            { 302, "Found" },
-            { 400, "Bad Request" },
-            { 401, "Unauthorized" },
-            { 403, "Forbidden" },
-            { 404, "Not Found" },
-            { 405, "Method Not Allowed" },
-            { 408, "Request Timeout" },
-            { 500, "Internal Server Error" },
-            { 501, "Not Implemented" },
-            { 502, "Bad Gateway" },
-            { 503, "Service Unavailable" }
-        };
-
-        if (statusMessages.ContainsKey(statusCode))
-        {
-            httpStatusCode = statusCode;
-            httpStatusMessage = statusMessages[statusCode];
-        }
-        else
-        {
-            // Default to 500 if the status code is unknown
-            httpStatusCode = 500;
-            httpStatusMessage = "Internal Server Error";
-        }
+        httpStatusCode = statusCode;
+        httpStatusMessage = ((HttpStatusCode)statusCode).ToString();
     }
 
     public byte[] CraftRawHttpResponse()
@@ -128,6 +130,23 @@ class HttpResponse
             httpResponse = ms.ToArray(); 
         }
         return httpResponse;
+    }
+
+    public void ServeFile(string filepath)
+    {
+        using(var fs = new FileStream(filepath, FileMode.Open, FileAccess.Read))
+        {
+            var contentType = MimeTypesMap.GetMimeType(filepath);
+            SetHeader("Content-Type", contentType);
+
+            var buffer = new byte[1024];
+            int bytesRead = 0;
+
+            while ((bytesRead = fs.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                AppendToBody(buffer[..bytesRead]);
+            }
+        }
     }
 }
 
